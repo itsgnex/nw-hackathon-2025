@@ -17,6 +17,8 @@ class AppState extends ChangeNotifier {
 
   Future<bool> signIn({required String email, required String password}) async {
     await Future.delayed(const Duration(seconds: 1));
+    // For demo purposes, any login is successful if not already logged in
+    _currentUserId = 'u_${DateTime.now().millisecondsSinceEpoch}';
     final success = _currentUserId != null;
     return success;
   }
@@ -48,7 +50,7 @@ class AppState extends ChangeNotifier {
   final Map<String, String> _nameById = {};
   List<Member> get members {
     final ids = _currentHome?.memberUserIds ?? const <String>[];
-    return [for (final id in ids) Member(id: id, name: _nameById[id] ?? 'Member', starter: _board.firstWhere((s) => s.userId == id, orElse: () => const Score(userId: '', name: '', weeklyXp: 0, allTimeXp: 0)).starter)];
+    return [for (final id in ids) Member(id: id, name: _nameById[id] ?? 'Member', starter: _board.firstWhere((s) => s.userId == id, orElse: () => Score(userId: '', name: '', weeklyXp: 0, allTimeXp: 0)).starter)];
   }
   String _code() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -80,7 +82,6 @@ class AppState extends ChangeNotifier {
   bool joinHome(String code) {
     final h = _homesByCode[code];
     if (h == null) {
-      // For showcase purposes, let's create a dummy home if the code is new
       final newHome = createHome('Joined Gym');
       _homesByCode[code] = newHome;
       _currentHome = newHome;
@@ -122,16 +123,15 @@ class AppState extends ChangeNotifier {
   // =====================================================
   // Quests
   // =====================================================
-  // --- MORE HARDCODED QUESTS ---
   final List<Quest> _quests = [
-    Quest(id: 'q1', title: 'Wash the dishes', room: Room.kitchen, xp: 10, done: true, assigneeId: 'u2'),
+    Quest(id: 'q1', title: 'Wash the dishes', room: Room.kitchen, xp: 10, done: true, assigneeId: 'u2', due: DateTime.now().subtract(const Duration(days: 1))),
     Quest(id: 'q2', title: 'Take out the trash', room: Room.kitchen, due: DateTime.now().add(const Duration(days: 1)), xp: 5, done: false, assigneeId: 'u3'),
-    Quest(id: 'q3', title: 'Clean the floor', room: Room.hallway, xp: 15, done: true, assigneeId: 'u3'),
-    Quest(id: 'q4', title: 'Wipe the counters', room: Room.kitchen, xp: 10, done: true, assigneeId: 'u2'),
+    Quest(id: 'q3', title: 'Clean the floor', room: Room.hallway, xp: 15, done: true, assigneeId: 'u3', due: DateTime.now().subtract(const Duration(days: 2))),
+    Quest(id: 'q4', title: 'Wipe the counters', room: Room.kitchen, xp: 10, done: true, assigneeId: 'u2', due: DateTime.now().subtract(const Duration(days: 3))),
     Quest(id: 'q5', title: 'Scrub the tub', room: Room.bathroom, xp: 20, done: false, assigneeId: 'u2'),
-    Quest(id: 'q6', title: 'Water the plants', room: Room.garden, xp: 5, done: true, assigneeId: 'u3'),
+    Quest(id: 'q6', title: 'Water the plants', room: Room.garden, xp: 5, done: true, assigneeId: 'u3', due: DateTime.now().subtract(const Duration(days: 4))),
   ];
-  List<Quest> get quests => List.unmodifiable(_quests..sort((a,b) => a.done ? 1 : -1)); // Keep incomplete quests at the top
+  List<Quest> get quests => List.unmodifiable(_quests..sort((a,b) => a.done ? 1 : -1));
   final Set<String> _penalizedOnce = {};
 
   void addManagedQuest({required String title, required Room room, required String assigneeId, int xp = 10, int penaltyXp = 5, DateTime? due}) {
@@ -150,7 +150,6 @@ class AppState extends ChangeNotifier {
     }
     notifyListeners();
   }
-  // ... (applyOverduePenalties, myOpenCount, myDueToday, myOverdue methods are unchanged) ...
   void applyOverduePenalties() {
     final now = DateTime.now();
     for (final q in _quests) {
@@ -236,7 +235,6 @@ class AppState extends ChangeNotifier {
   // =====================================================
   // Bill Splitting
   // =====================================================
-  // --- MORE HARDCODED BILLS ---
   final List<Bill> _bills = [
     Bill(id: 'bill1', description: 'Weekend Pizza Night', totalAmount: 45.50, paidBy: 'u2', splitWith: {'u2', 'u3'}, date: DateTime.now().subtract(const Duration(days: 2))),
     Bill(id: 'bill2', description: 'Internet Bill', totalAmount: 60.00, paidBy: 'u3', splitWith: {'u2', 'u3'}, date: DateTime.now().subtract(const Duration(days: 5))),
@@ -255,7 +253,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ... (renameUser and other settings helpers remain the same) ...
   void renameUser(String newName) {
     final trimmed = newName.trim();
     if (trimmed.isEmpty) return;
@@ -266,5 +263,43 @@ class AppState extends ChangeNotifier {
       _board[i] = _board[i].copyWith(name: _userName);
     }
     notifyListeners();
+  }
+
+  // =====================================================
+  // *** NEW EVOLUTION METHOD IS HERE ***
+  // =====================================================
+  void evolvePokemon() {
+    final meIdx = _board.indexWhere((s) => s.userId == userId);
+    if (meIdx == -1 || _starter == null) return; // Can't evolve
+
+    final score = _board[meIdx];
+    if (score.allTimeXp < 500) return; // Not enough XP
+
+    int? nextId;
+    String? nextName;
+
+    // Simple, hardcoded evolution logic
+    switch (_starter!.id) {
+      case 1: nextId = 2; nextName = 'ivysaur'; break; // Bulbasaur -> Ivysaur
+      case 4: nextId = 5; nextName = 'charmeleon'; break; // Charmander -> Charmeleon
+      case 7: nextId = 8; nextName = 'wartortle'; break; // Squirtle -> Wartortle
+    // Add more evolution cases here for other Pokémon
+      default: return; // This Pokémon can't evolve in our app yet
+    }
+
+    if (nextId != null) {
+      // Deduct XP and update the starter Pokémon
+      final newStarter = Mon(
+        id: nextId,
+        name: nextName!,
+        imageUrl: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/$nextId.png',
+      );
+      _starter = newStarter;
+      _board[meIdx] = score.copyWith(
+        allTimeXp: score.allTimeXp - 500, // Spend 500 XP
+        starter: newStarter,
+      );
+      notifyListeners();
+    }
   }
 }

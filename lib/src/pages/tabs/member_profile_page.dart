@@ -4,11 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models.dart';
 import '../../state/app_state.dart';
+import 'task_history_page.dart'; // Import the history page
 
-// This is a new page specifically for viewing other members' profiles.
 class MemberProfilePage extends StatelessWidget {
   final Member member;
-
   const MemberProfilePage({super.key, required this.member});
 
   @override
@@ -37,10 +36,7 @@ class MemberProfilePage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF81C784), // A light, grassy green
-              Color(0xFF4DB6AC), // A soft teal
-            ],
+            colors: [Color(0xFF81C784), Color(0xFF4DB6AC)],
           ),
         ),
         child: ListView(
@@ -59,12 +55,14 @@ class MemberProfilePage extends StatelessWidget {
                     else
                       const Icon(Icons.catching_pokemon_rounded, size: 80, color: Colors.grey),
                     const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(member.name, style: theme.textTheme.headlineSmall),
-                        Text('Member of ${appState.currentHome?.name ?? 'the team'}', style: theme.textTheme.bodyLarge),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(member.name, style: theme.textTheme.headlineSmall),
+                          Text('Member of ${appState.currentHome?.name ?? 'the team'}', style: theme.textTheme.bodyLarge),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -72,7 +70,7 @@ class MemberProfilePage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- XP AND STATS CARD ---
+            // --- *** THIS IS THE NEW/CORRECTED STATS CARD *** ---
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -84,6 +82,7 @@ class MemberProfilePage extends StatelessWidget {
                     Text('Trainer Stats', style: theme.textTheme.titleLarge),
                     const Divider(height: 20),
                     ListTile(
+                      contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.star_rounded, color: Colors.amber),
                       title: const Text('All-Time XP'),
                       trailing: Text(
@@ -92,11 +91,24 @@ class MemberProfilePage extends StatelessWidget {
                       ),
                     ),
                     ListTile(
+                      contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.local_fire_department_rounded, color: Colors.deepOrange),
                       title: const Text('Weekly XP'),
                       trailing: Text(
                         '${score.weeklyXp}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ),
+                    const Divider(),
+                    // --- THIS BUTTON IS NOW VISIBLE ---
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => TaskHistoryPage(member: member)),
+                          );
+                        },
+                        child: const Text('View Task History'),
                       ),
                     ),
                   ],

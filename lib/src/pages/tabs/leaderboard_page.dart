@@ -1,12 +1,8 @@
 // lib/src/pages/tabs/leaderboard_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../models.dart';
 import '../../state/app_state.dart';
-// REMOVED: No longer need to import the main profile page here.
-// import 'profile_page.dart';
-// ADDED: Import the new page for viewing other members.
 import 'member_profile_page.dart';
 
 class LeaderboardPage extends StatelessWidget {
@@ -14,9 +10,10 @@ class LeaderboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final app = context.watch<AppState>();
-    final board = app.board;
+    final appState = context.watch<AppState>();
+    final board = appState.board;
     final theme = Theme.of(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -31,10 +28,7 @@ class LeaderboardPage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF81C784), // A light, grassy green
-              Color(0xFF4DB6AC), // A soft teal
-            ],
+            colors: [Color(0xFF81C784), Color(0xFF4DB6AC)],
           ),
         ),
         child: ListView.builder(
@@ -42,66 +36,87 @@ class LeaderboardPage extends StatelessWidget {
           itemCount: board.length,
           itemBuilder: (context, i) {
             final score = board[i];
-            final member = app.members.firstWhere(
+            final member = appState.members.firstWhere(
                   (m) => m.id == score.userId,
               orElse: () => Member(id: score.userId, name: score.name, starter: score.starter),
             );
 
+            // --- XP PROGRESS CALCULATION ---
+            final double progress = (score.allTimeXp / 500).clamp(0.0, 1.0);
+            final bool canEvolve = score.allTimeXp >= 500;
+            final bool isCurrentUser = member.id == appState.userId;
+
             return Card(
               elevation: 4,
               margin: const EdgeInsets.symmetric(vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              clipBehavior: Clip.antiAlias, // Important for the progress bar to look good
               child: InkWell(
-                borderRadius: BorderRadius.circular(20),
                 onTap: () {
-                  // Don't navigate if the user taps on their own profile in the list
-                  if (member.id == app.userId) return;
-
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      // *** THIS IS THE FIX ***
-                      // Navigate to the new MemberProfilePage and pass the member data.
-                      builder: (_) => MemberProfilePage(member: member),
-                    ),
+                    MaterialPageRoute(builder: (_) => MemberProfilePage(member: member)),
                   );
                 },
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: ListTile(
-                    // If it's the current user, highlight them
-                    tileColor: member.id == app.userId ? theme.colorScheme.primary.withOpacity(0.1) : null,
-                    leading: _RankIndicator(rank: i + 1),
-                    title: Text(
-                      score.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                      child: ListTile(
+                        tileColor: isCurrentUser ? theme.colorScheme.primary.withOpacity(0.1) : null,
+                        leading: _RankIndicator(rank: i + 1),
+                        title: Text(score.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                        subtitle: Text('Weekly XP: ${score.weeklyXp}'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${score.allTimeXp} XP',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF004D40)),
+                            ),
+                            const SizedBox(width: 12),
+                            if (score.starter != null)
+                              Image.network(score.starter!.imageUrl, height: 40, width: 40, errorBuilder: (_, __, ___) => const SizedBox.shrink())
+                            else
+                              const Icon(Icons.catching_pokemon, color: Colors.grey, size: 32),
+                          ],
+                        ),
+                      ),
                     ),
-                    subtitle: Text('Weekly XP: ${score.weeklyXp}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${score.allTimeXp} XP',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF004D40),
+                    // --- *** THIS IS THE UPDATED PROGRESS/EVOLVE SECTION *** ---
+                    if (!canEvolve) // If they CAN'T evolve, show the progress bar
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Evolution Progress: ${score.allTimeXp} / 500 XP', style: theme.textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            LinearProgressIndicator(
+                              value: progress,
+                              backgroundColor: Colors.grey.shade300,
+                              color: Colors.amber,
+                              minHeight: 6,
+                            ),
+                          ],
+                        ),
+                      )
+                    else // If they CAN evolve, show a clear call to action
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: Text(
+                            // Guide the user on what to do next
+                            isCurrentUser ? 'Go to Your Profile to Evolve!' : 'Ready to Evolve!',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        if (score.starter != null)
-                          Image.network(
-                            score.starter!.imageUrl,
-                            height: 40,
-                            width: 40,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                          )
-                        else
-                          const Icon(Icons.catching_pokemon, color: Colors.grey, size: 32),
-                      ],
-                    ),
-                  ),
+                      ),
+                  ],
                 ),
               ),
             );
@@ -111,10 +126,8 @@ class LeaderboardPage extends StatelessWidget {
     );
   }
 }
-// _RankIndicator widget remains the same...
-// --- ADD THIS WIDGET TO THE BOTTOM OF YOUR FILE ---
 
-// A helper widget to display the rank with a styled background.
+// _RankIndicator widget remains the same...
 class _RankIndicator extends StatelessWidget {
   final int rank;
   const _RankIndicator({required this.rank});
@@ -140,22 +153,12 @@ class _RankIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: _getRankColor(),
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))],
       ),
       child: Center(
         child: Text(
           '$rank',
-          style: TextStyle(
-            color: rank > 3 ? Colors.black54 : Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+          style: TextStyle(color: rank > 3 ? Colors.black54 : Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ),
     );

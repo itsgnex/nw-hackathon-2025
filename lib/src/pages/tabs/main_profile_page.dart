@@ -5,7 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models.dart';
 import '../../state/app_state.dart';
-import '../../widgets/rename_dialog.dart'; // Make sure this import is correct
+import '../../widgets/rename_dialog.dart';
+import 'task_history_page.dart'; // Import the new task history page
 
 class MainProfilePage extends StatelessWidget {
   const MainProfilePage({super.key});
@@ -35,7 +36,6 @@ class MainProfilePage extends StatelessWidget {
         }
       }
     }
-
     return {'iOwe': iOwe, 'othersOweMe': othersOweMe};
   }
 
@@ -45,13 +45,25 @@ class MainProfilePage extends StatelessWidget {
     final appState = context.watch<AppState>();
     final starter = appState.starter;
 
+    // --- Get score and member info for the current user ---
+    final score = appState.board.firstWhere(
+          (s) => s.userId == appState.userId,
+      orElse: () => Score(userId: appState.userId, name: appState.userName, weeklyXp: 0, allTimeXp: 0),
+    );
+    final member = appState.members.firstWhere(
+          (m) => m.id == appState.userId,
+      orElse: () => Member(id: appState.userId, name: appState.userName, starter: starter),
+    );
+
+    // --- Evolution Logic ---
+    final canEvolve = score.allTimeXp >= 500;
+
     // --- Calculate owed amounts ---
     final owedAmounts = _calculateOwedMoney(appState);
     final iOwe = owedAmounts['iOwe']!;
     final othersOweMe = owedAmounts['othersOweMe']!;
     final currencyFormat = NumberFormat.simpleCurrency(decimalDigits: 2);
 
-    // This Container provides the exact same gradient as your other pages
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -64,7 +76,7 @@ class MainProfilePage extends StatelessWidget {
         ),
       ),
       child: Scaffold(
-        backgroundColor: Colors.transparent, // Make Scaffold transparent to see the gradient
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: Text(
             'Your Profile',
@@ -86,7 +98,7 @@ class MainProfilePage extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // --- 1. PROFILE SECTION (with Edit Button) ---
+            // --- 1. PROFILE SECTION ---
             Card(
               elevation: 4,
               color: Colors.white.withOpacity(0.95),
@@ -106,9 +118,7 @@ class MainProfilePage extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              // Display the user's name
                               Expanded(child: Text(appState.userName, style: theme.textTheme.headlineSmall, overflow: TextOverflow.ellipsis)),
-                              // --- Edit Name Button ---
                               IconButton(
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
@@ -136,7 +146,97 @@ class MainProfilePage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- 2. NEW MONEY OWED SECTION ---
+            // --- 2. NEW TRAINER STATS SECTION ---
+            Card(
+              elevation: 4,
+              color: Colors.white.withOpacity(0.95),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Trainer Stats', style: theme.textTheme.titleLarge),
+                    const Divider(height: 20),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.star_rounded, color: Colors.amber),
+                      title: const Text('All-Time XP'),
+                      trailing: Text(
+                        '${score.allTimeXp}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.local_fire_department_rounded, color: Colors.deepOrange),
+                      title: const Text('Weekly XP'),
+                      trailing: Text(
+                        '${score.weeklyXp}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ),
+                    const Divider(),
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => TaskHistoryPage(member: member)),
+                          );
+                        },
+                        child: const Text('View Task History'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // --- 3. EVOLUTION CARD (Conditional) ---
+            if (canEvolve)
+              Card(
+                color: Colors.yellow[100],
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Text('Evolution Ready!', style: theme.textTheme.titleLarge?.copyWith(color: Colors.orange[800])),
+                      const SizedBox(height: 8),
+                      Text('${starter?.name ?? "Your Pokémon"} is ready to evolve!', textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.upgrade_rounded),
+                        label: const Text('Evolve for 500 XP'),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Confirm Evolution'),
+                              content: const Text('This will spend 500 XP. Are you sure?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancel')),
+                                FilledButton(
+                                  onPressed: () {
+                                    appState.evolvePokemon();
+                                    Navigator.of(dialogContext).pop();
+                                  },
+                                  child: const Text('Evolve!'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            if (canEvolve) const SizedBox(height: 24),
+
+            // --- 4. MONEY OWED SECTION ---
             Card(
               elevation: 4,
               color: Colors.white.withOpacity(0.95),
@@ -148,28 +248,16 @@ class MainProfilePage extends StatelessWidget {
                   children: [
                     Text('Money Summary', style: theme.textTheme.titleLarge),
                     const Divider(height: 24),
-                    _buildMoneyRow(
-                      context: context,
-                      label: 'You Owe',
-                      amount: iOwe,
-                      color: Colors.redAccent,
-                      icon: Icons.arrow_circle_up_rounded,
-                    ),
+                    _buildMoneyRow(context: context, label: 'You Owe', amount: iOwe, color: Colors.redAccent, icon: Icons.arrow_circle_up_rounded),
                     const SizedBox(height: 16),
-                    _buildMoneyRow(
-                      context: context,
-                      label: 'Others Owe You',
-                      amount: othersOweMe,
-                      color: Colors.green,
-                      icon: Icons.arrow_circle_down_rounded,
-                    ),
+                    _buildMoneyRow(context: context, label: 'Others Owe You', amount: othersOweMe, color: Colors.green, icon: Icons.arrow_circle_down_rounded),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 24),
 
-            // --- 3. HOME CODE SECTION ---
+            // --- 5. HOME CODE SECTION ---
             Card(
               elevation: 4,
               color: Colors.white.withOpacity(0.95),
@@ -182,11 +270,13 @@ class MainProfilePage extends StatelessWidget {
                     Text('Home Info', style: theme.textTheme.titleLarge),
                     const Divider(height: 20),
                     ListTile(
+                      contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.home_work_outlined),
                       title: Text(appState.currentHome?.name ?? 'No Home'),
                       subtitle: const Text('Home Name'),
                     ),
                     ListTile(
+                      contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.qr_code_2),
                       title: Text(appState.currentHome?.code ?? 'N/A'),
                       subtitle: const Text('Home Code'),
@@ -243,4 +333,3 @@ class MainProfilePage extends StatelessWidget {
     );
   }
 }
-
